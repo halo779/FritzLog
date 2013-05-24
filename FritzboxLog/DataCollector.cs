@@ -22,11 +22,18 @@ namespace FritzboxLog
 
                 return info.Element("Challenge").Value;
             }
-            catch (WebException)
+            catch (Exception e)
             {
-
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.Write("[Error] Cant connect to fritzbox.");
+                if(e.GetType() == typeof(WebException))
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.Write("[Error] Cant connect to fritzbox.");
+                }
+                else if (e.GetType() == typeof(System.Xml.XmlException))
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.Write("[Error] Cant Read XML, check Fritzbox firmware!.");
+                }
                 Console.ReadKey();
 
                 Environment.Exit(0);
@@ -113,12 +120,12 @@ namespace FritzboxLog
             stats.INPTx = GetDouble(info,"tx");
 
             info = doc.Element("DSL").Element("DATA").Element("Latenz").Element("RX");
-            stats.latancyDelayRx = GetByte(info, "delay");
-            stats.latancyRx = GetBool(info, "interleave");
+            stats.LatencyDelayRx = GetByte(info, "delay");
+            stats.LatencyRx = GetBool(info, "interleave");
 
             info = doc.Element("DSL").Element("DATA").Element("Latenz").Element("TX");
-            stats.latancyDelayTx = GetByte(info, "delay");
-            stats.latancyTx = GetBool(info, "interleave");
+            stats.LatencyDelayTx = GetByte(info, "delay");
+            stats.LatencyTx = GetBool(info, "interleave");
 
             info = doc.Element("DSL").Element("DATA").Element("LineLoss");
             stats.LineAttenuationRx = GetByte(info, "rx");

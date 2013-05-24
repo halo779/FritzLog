@@ -11,9 +11,9 @@ namespace FritzboxLog
 
         public int BitPilotReference;
 
-        public byte latancyDelayRx, latancyDelayTx, SignalNoiseRatioRx, SignalNoiseRatioTx, LineAttenuationRx, LineAttenuationTx, DslMode, DslCarrierState, DLM;
+        public byte LatencyDelayRx, LatencyDelayTx, SignalNoiseRatioRx, SignalNoiseRatioTx, LineAttenuationRx, LineAttenuationTx, DslMode, DslCarrierState, DLM;
 
-        public bool latancyRx, latancyTx, BitswapRx, BitswapTx;
+        public bool LatencyRx, LatencyTx, BitswapRx, BitswapTx;
 
         public double INPRx, INPTx, FECPerMinDevice, FECPerMinExchange, CRCPerMinDevice, CRCPerMinExchange;
 
@@ -23,35 +23,35 @@ namespace FritzboxLog
         {
             DLM = 0;
 
-            if (latancyDelayRx == 1 && INPRx == 0.0)
+            if (LatencyDelayRx == 1 && INPRx == 0.0)
             {
                 DLM = 1;
             }
-            else if (latancyDelayRx == 8 && INPRx == 0.0)
+            else if (LatencyDelayRx == 8 && INPRx == 0.0)
             {
                 DLM = 2;
             }
-            else if (latancyDelayRx == 8 && INPRx == 1.0)
+            else if (LatencyDelayRx == 8 && INPRx == 1.0)
             {
                 DLM = 4;
             }
-            else if (latancyDelayRx == 8 && INPRx == 2.0)
+            else if (LatencyDelayRx == 8 && INPRx == 2.0)
             {
                 DLM = 6;
             }
-            else if (latancyDelayRx == 16 && INPRx == 0.0)
+            else if (LatencyDelayRx == 16 && INPRx == 0.0)
             {
                 DLM = 3;
             }
-            else if (latancyDelayRx == 16 && INPRx == 1.0)
+            else if (LatencyDelayRx == 16 && INPRx == 1.0)
             {
                 DLM = 5;
             }
-            else if (latancyDelayRx == 16 && INPRx == 2.0)
+            else if (LatencyDelayRx == 16 && INPRx == 2.0)
             {
                 DLM = 7;
             }
-            else if (latancyDelayRx == 16 && INPRx == 4.0)
+            else if (LatencyDelayRx == 16 && INPRx == 4.0)
             {
                 DLM = 8;
             }
