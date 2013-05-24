@@ -52,7 +52,6 @@ namespace FritzboxLog
             stopWatch.Start();
             
             
-
             DataCollector dc = new DataCollector();
 
             string challange = dc.GetChallenge(config);
