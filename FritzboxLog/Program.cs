@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Xml.Serialization;
 using System.IO;
+using Microsoft.Runtime;
 
 namespace FritzboxLog
 {
@@ -53,7 +54,19 @@ namespace FritzboxLog
             
             
             DataCollector dc = new DataCollector();
+            DslInfo info = new DslInfo();
 
+            info.Firmware = dc.GetFirmwareVersion(config);
+            int mainOsVer = 0;
+            int minorOsVer = 0;
+            int.TryParse(info.Firmware.Split('.')[1], out mainOsVer);
+            int.TryParse(info.Firmware.Split('.')[2], out minorOsVer);
+
+            if (mainOsVer > 5 || (mainOsVer == 5 && minorOsVer >= 50))
+            {
+                config.FritzOs5 = true;
+                Console.WriteLine("Fritz OS 5.0 Detected.");
+            }
             string challange = dc.GetChallenge(config);
             string response = dc.GetResponse(challange, config.password);
             string sid = dc.GetSid(challange, response, config);
@@ -66,9 +79,8 @@ namespace FritzboxLog
                 Environment.Exit(0);
             }
             Console.WriteLine("\n-=- DSL Info -=-\n");
-            
-            DslInfo info;
-            info = dc.GetDslStats(sid, config);
+
+            dc.GetDslStats(sid, config, ref info);
 
             foreach (var field in typeof(DslInfo).GetFields())
             {

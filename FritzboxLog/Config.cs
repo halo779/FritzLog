@@ -34,5 +34,7 @@ namespace FritzboxLog
         public const int DEFAULT_CONFVERSION = 1;
         public const bool DEFAULT_LOGTOTEXTFILE = false;
 
+        public bool FritzOs5 = false;
+
     }
 }

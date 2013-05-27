@@ -8,6 +8,9 @@ using System.Net;
 using System.IO;
 using HtmlAgilityPack;
 using System.Text.RegularExpressions;
+using System.Xml;
+using System.Runtime.Serialization;
+using Newtonsoft.Json;
 
 namespace FritzboxLog
 {
@@ -17,7 +20,7 @@ namespace FritzboxLog
         {
             try
             {
-                XDocument doc = XDocument.Load("http://" + conf.baseurl + "/cgi-bin/webcm?getpage=../html/login_sid.xml");
+                XDocument doc = XDocument.Load("http://" + conf.baseurl + "/login_sid.lua");
                 XElement info = doc.FirstNode as XElement;
 
                 return info.Element("Challenge").Value;
@@ -32,7 +35,7 @@ namespace FritzboxLog
                 else if (e.GetType() == typeof(System.Xml.XmlException))
                 {
                     Console.ForegroundColor = ConsoleColor.Red;
-                    Console.Write("[Error] Cant Read XML, check Fritzbox firmware!.");
+                    Console.Write("[Error] Cant Read XML.");
                 }
                 Console.ReadKey();
 
@@ -41,6 +44,41 @@ namespace FritzboxLog
                 return null;
             }
             
+        }
+
+        private string getXMLValue(XDocument doc, string name, XNamespace nameSpace)
+        {
+            XElement info = doc.FirstNode as XElement;
+            return info.Element(nameSpace + name).Value;
+        }
+
+        public string GetFirmwareVersion(Config conf)
+        {
+            try
+            {
+                XDocument doc = XDocument.Load("http://" + conf.baseurl + "/jason_boxinfo.xml");
+                string ver = getXMLValue(doc, "Version", "http://jason.avm.de/updatecheck/");
+
+                return ver.ToString();
+            }
+            catch (Exception e)
+            {
+                if (e.GetType() == typeof(WebException))
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.Write("[Error] Cant connect to fritzbox.");
+                }
+                else if (e.GetType() == typeof(System.Xml.XmlException))
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.Write("[Error] Cant Read XML.");
+                }
+                Console.ReadKey();
+
+                Environment.Exit(0);
+
+                return null;
+            }
         }
 
         public string GetMD5Hash(string input)
@@ -62,21 +100,33 @@ namespace FritzboxLog
 
         public string GetSid(string challenge, string response, Config conf)
         {
-            HttpWebRequest request = WebRequest.Create("http://" + conf.baseurl + "/cgi-bin/webcm") as HttpWebRequest;
-            request.Method = "POST";
-            request.ContentType = "application/x-www-form-urlencoded";
-            string parameter = String.Format(@"login:command/response={0}-{1}&amp;getpage=../html/login_sid.xml", challenge, response);
-            byte[] bytes = Encoding.ASCII.GetBytes(parameter);
-            request.ContentLength = bytes.Length;
-            Stream stream = request.GetRequestStream();
-            stream.Write(bytes, 0, bytes.Length);
-            stream.Close();
-            HttpWebResponse wr = request.GetResponse() as HttpWebResponse;
-            StreamReader reader = new StreamReader(wr.GetResponseStream());
-            string str = reader.ReadToEnd();
-            XDocument doc = XDocument.Parse(str);
-            XElement info = doc.FirstNode as XElement;
-            return info.Element("SID").Value;
+            string SID = "0000000000000000";
+            if (conf.FritzOs5)
+            {
+                XDocument doc = XDocument.Load("http://" + conf.baseurl + "/login_sid.lua?username=&response=" + challenge + "-" + response);
+
+                XElement info = doc.FirstNode as XElement;
+                SID = info.Element("SID").Value;
+            }
+            else
+            {
+                HttpWebRequest request = WebRequest.Create("http://" + conf.baseurl + "/cgi-bin/webcm") as HttpWebRequest;
+                request.Method = "POST";
+                request.ContentType = "application/x-www-form-urlencoded";
+                string parameter = String.Format(@"login:command/response={0}-{1}&amp;getpage=../html/login_sid.xml", challenge, response);
+                byte[] bytes = Encoding.ASCII.GetBytes(parameter);
+                request.ContentLength = bytes.Length;
+                Stream stream = request.GetRequestStream();
+                stream.Write(bytes, 0, bytes.Length);
+                stream.Close();
+                HttpWebResponse wr = request.GetResponse() as HttpWebResponse;
+                StreamReader reader = new StreamReader(wr.GetResponseStream());
+                string str = reader.ReadToEnd();
+                XDocument doc = XDocument.Parse(str);
+                XElement info = doc.FirstNode as XElement;
+                SID = info.Element("SID").Value;
+            }
+            return SID;
         }
 
         public string GetPage(string url, string sid)
@@ -89,239 +139,93 @@ namespace FritzboxLog
             return str;
         }
 
-        public DslInfo GetDslStats(string sid, Config conf)
+        public void GetDslStats(string sid, Config conf, ref DslInfo stats)
         {
-            DslInfo stats = new DslInfo();
-
-            XDocument doc = XDocument.Load("http://" + conf.baseurl + "/cgi-bin/webcm?getpage=../html/de/internet/adsldaten.xml" + "&sid=" + sid);
-            
-            XElement info = doc.Element("DSL").Element("DATA").Element("Bitswap");
-            stats.BitswapRx = GetBool(info, "rx");
-            stats.BitswapTx = GetBool(info, "tx");
-
-            info = doc.Element("DSL").Element("STATISTIC").Element("CRC_min");
-            stats.CRCPerMinExchange = GetDouble(info,"coe");
-            stats.CRCPerMinDevice = GetDouble(info,"cpe");
-
-            info = doc.Element("DSL").Element("DATA").Element("ActDataRate");
-            stats.CurrentThroughputRx = GetLong(info,"rx");
-            stats.CurrentThroughputTx = GetLong(info, "tx");
-
-            info = doc.Element("DSL");
-            stats.DslCarrierState = GetByte(info, "carrierState");
-            stats.DslMode = GetByte(info, "mode");
-
-            info = doc.Element("DSL").Element("STATISTIC").Element("FEC_min");
-            stats.FECPerMinExchange =  GetDouble(info,"coe");
-            stats.FECPerMinDevice = GetDouble(info,"cpe");
-
-            info = doc.Element("DSL").Element("DATA").Element("INP");
-            stats.INPRx = GetDouble(info,"rx");
-            stats.INPTx = GetDouble(info,"tx");
-
-            info = doc.Element("DSL").Element("DATA").Element("Latenz").Element("RX");
-            stats.LatencyDelayRx = GetByte(info, "delay");
-            stats.LatencyRx = GetBool(info, "interleave");
-
-            info = doc.Element("DSL").Element("DATA").Element("Latenz").Element("TX");
-            stats.LatencyDelayTx = GetByte(info, "delay");
-            stats.LatencyTx = GetBool(info, "interleave");
-
-            info = doc.Element("DSL").Element("DATA").Element("LineLoss");
-            stats.LineAttenuationRx = GetByte(info, "rx");
-            stats.LineAttenuationTx = GetByte(info, "tx");
-
-            info = doc.Element("DSL").Element("DATA").Element("SignalNoiseDistance");
-            stats.SignalNoiseRatioRx = GetByte(info, "rx");
-            stats.SignalNoiseRatioTx = GetByte(info, "tx");
+            Dictionary<string, string> modemStats = getJsonQueryDict(sid, conf, "sar:status/ds_attenuation", "sar:status/ds_crc_minute", "sar:status/ds_crc_per15min", "sar:status/ds_delay", "sar:status/ds_es", "sar:status/ds_fec_minute", "sar:status/ds_fec_per15min", "sar:status/ds_margin", "sar:status/ds_path", "sar:status/ds_ses", "sar:status/dsl_ds_rate", "sar:status/dsl_tone_set", "sar:status/dsl_us_rate", "sar:status/exp_ds_inp_act", "sar:status/exp_ds_olr_Bitswap", "sar:status/exp_us_inp_act", "sar:status/exp_us_olr_Bitswap", "sar:status/us_attenuation", "sar:status/us_crc_minute", "sar:status/us_crc_per15min", "sar:status/us_delay", "sar:status/us_es", "sar:status/us_fec_minute", "sar:status/us_fec_per15min", "sar:status/us_margin", "sar:status/us_path", "sar:status/us_ses", "sar:status/vdsl_profile_string", "sar:status/dsl_train_state");
 
 
-            doc = XDocument.Load(@"http://" + conf.baseurl + "/cgi-bin/webcm?getpage=../html/de/internet/overviewdaten.xml" + "&sid=" + sid);
+            XDocument doc = new XDocument();
 
-            info = doc.Element("DSLOverview").Element("DSLStatus");
-            stats.DslUpTime = GetLongEl(info, "ShowtimeInSec");
+            stats.BitswapRx = GetBool(modemStats["sar:status/ds_path"]);
+            stats.BitswapTx = GetBool(modemStats["sar:status/us_path"]);
 
-            info = doc.Element("DSLOverview").Element("DSLAMInfo").Element("ATCU");
-            stats.ATCUId = GetStringEl(info, "ID");
-            info = info.Element("VERSION");
-            stats.ATCUVendor = GetString(info, "vendor");
-            stats.ATCUHybrid = GetString(info, "hybrid");
+            stats.CRCPerMinExchange = GetDouble(modemStats["sar:status/ds_crc_minute"]);
+            stats.CRCPerMinDevice = GetDouble(modemStats["sar:status/us_crc_minute"]);
 
-            info = doc.Element("DSLOverview").Element("DSLAMInfo").Element("DSLAM");
-            stats.DSLAMId = GetStringEl(info, "ID");
-            stats.DSLAMVersion = GetStringEl(info, "VERSION");
-            stats.DSLAMSerial = GetStringEl(info, "SERIAL");
+            stats.CurrentThroughputRx = GetLong(modemStats["sar:status/dsl_ds_rate"]);
+            stats.CurrentThroughputTx = GetLong(modemStats["sar:status/dsl_us_rate"]);
 
-            doc = XDocument.Load(@"http://" + conf.baseurl + "/cgi-bin/webcm?getpage=../html/de/internet/bitsdaten.xml" + "&sid=" + sid);
+            stats.DslMode = GetByte(modemStats["sar:status/dsl_train_state"]);
 
-            info = doc.Element("DSLSpectrum").Element("SNRDIAGRAM");
-            stats.SNRGraph = GetStringEl(info, "VALUES");
+            stats.FECPerMinExchange = GetDouble(modemStats["sar:status/ds_fec_minute"]);
+            stats.FECPerMinDevice = GetDouble(modemStats["sar:status/us_fec_minute"]);
 
-            info = doc.Element("DSLSpectrum").Element("BITSDIAGRAM");
-            stats.BitLoaderGraph = GetStringEl(info, "VALUES");
+            stats.INPRx = GetDouble(modemStats["sar:status/exp_ds_inp_act"]);
+            stats.INPTx = GetDouble(modemStats["sar:status/exp_us_inp_act"]);
 
-            info = info.Element("PILOT");
-            stats.BitPilotReference = (int)GetLong(info, "tone");
+            stats.LatencyDelayRx = GetByte(modemStats["sar:status/ds_delay"]);
+            stats.LatencyRx = GetBool(modemStats["sar:status/ds_path"]);
 
+            stats.LatencyDelayTx = GetByte(modemStats["sar:status/us_delay"]);
+            stats.LatencyTx = GetBool(modemStats["sar:status/us_path"]);
 
+            stats.LineAttenuationRx = GetByte(modemStats["sar:status/ds_attenuation"]);
+            stats.LineAttenuationTx = GetByte(modemStats["sar:status/us_attenuation"]);
 
+            stats.SignalNoiseRatioRx = GetByte(modemStats["sar:status/ds_margin"]);
+            stats.SignalNoiseRatioTx = GetByte(modemStats["sar:status/us_margin"]);
 
-            HttpWebRequest request = WebRequest.Create(@"http://" + conf.baseurl + "/cgi-bin/webcm?getpage=../html/de/menus/menu2.html&var:pagename=adsl&var:menu=internet" + "&sid=" + sid) as HttpWebRequest;
-            request.Method = "GET";
-            HttpWebResponse wr = request.GetResponse() as HttpWebResponse;
-            StreamReader reader = new StreamReader(wr.GetResponseStream());
-            string str = reader.ReadToEnd();
-
-
-            HtmlDocument htdoc = new HtmlDocument();
-            htdoc.LoadHtml(str);
-
-            stats.LineProfile = htdoc.GetElementbyId("Profile").ChildNodes[3].InnerText;
+            stats.LineProfile = modemStats["sar:status/vdsl_profile_string"];
 
             stats.CalcuateDLM();
 
-            request = WebRequest.Create(@"http://" + conf.baseurl + "/cgi-bin/webcm?getpage=../html/de/menus/menu2.html&var:pagename=overview&var:menu=internet" + "&sid=" + sid) as HttpWebRequest;
-            request.Method = "GET";
-            wr = request.GetResponse() as HttpWebResponse;
-            reader = new StreamReader(wr.GetResponseStream());
-            str = reader.ReadToEnd();
+
+            modemStats = getJsonQueryDict(sid, conf, "sar:status/modem_ShowtimeSecs", "sar:status/ATUC_vendor_ID", "sar:status/ATUC_vendor_version", "sar:status/dslam_VendorID", "sar:status/dslam_VendorID", "sar:status/dslam_VersionNumber", "sar:status/dslam_SerialNumber", "sar:status/DSP_Datapump_ver");
 
 
-            htdoc = new HtmlDocument();
-            htdoc.LoadHtml(str);
+            stats.DslUpTime = GetLong(modemStats["sar:status/modem_ShowtimeSecs"]);
 
-            stats.DSLVersion = htdoc.DocumentNode.SelectSingleNode("//*[@class='foredialog']//table//tr[3]//td[1]//text()[2]").InnerText;
+            stats.ATCUId = modemStats["sar:status/ATUC_vendor_ID"];
 
-            request = WebRequest.Create(@"http://" + conf.baseurl + "/internet/dsl_line_settings.lua?" + "sid=" + sid) as HttpWebRequest;
-            request.Method = "GET";
-            wr = request.GetResponse() as HttpWebResponse;
-            reader = new StreamReader(wr.GetResponseStream());
-            str = reader.ReadToEnd();
+            stats.ATCUVendor = modemStats["sar:status/ATUC_vendor_version"];
 
+            stats.DSLAMId = modemStats["sar:status/dslam_VendorID"];
+            stats.DSLAMVersion = modemStats["sar:status/dslam_VersionNumber"];
+            stats.DSLAMSerial = modemStats["sar:status/dslam_SerialNumber"];
 
-            htdoc = new HtmlDocument();
-            htdoc.LoadHtml(str);
+            stats.DSLVersion = modemStats["sar:status/DSP_Datapump_ver"];
 
-            string s = htdoc.GetElementbyId("logqueries").SelectSingleNode("pre").SelectSingleNode("code").InnerText.Replace("\r", string.Empty).Replace(@"\", string.Empty);
-            string[] s2 = s.Split(Environment.NewLine.ToCharArray());
+            modemStats = getJsonQueryDict(sid, conf, "sar:status/ds_snrArrayXML", "sar:status/bitsArrayXML", "sar:status/pilot");
 
-            foreach (string item in s2)
-                if (item.Contains("box:status/localtime"))
-                {
-                    string q = item.Split('=')[1].Split('"')[1];
-                    stats.LocalTime = q;
+            stats.SNRGraph = modemStats["sar:status/ds_snrArrayXML"];
 
-                    break;
-                }
-            foreach (string item in s2)
-                if (item.Contains("sar:settings/Annex"))
-                {
-                    string q = item.Split('=')[1].Split('"')[1];
-                    stats.Annex = q;
+            stats.BitLoaderGraph = modemStats["sar:status/bitsArrayXML"];
 
-                    break;
-                }
-            foreach (string item in s2)
-                if (item.Contains("sar:settings/DownstreamMarginOffset"))
-                {
-                    string q = item.Split('=')[1].Split('"')[1];
-                    stats.DownstreamMarginOffset = q;
-
-                    break;
-                }
-            foreach (string item in s2)
-                if (item.Contains("sar:settings/DsINP"))
-                {
-                    string q = item.Split('=')[1].Split('"')[1];
-                    stats.DsINP = q;
-
-                    break;
-                }
-
-            foreach (string item in s2)
-                if (item.Contains("sar:settings/RFI_mode"))
-                {
-                    string q = item.Split('=')[1].Split('"')[1];
-                    stats.RFI_mode = q;
-
-                    break;
-                }
-            foreach (string item in s2)
-                if (item.Contains("sar:settings/UsNoiseBits"))
-                {
-                    string q = item.Split('=')[1].Split('"')[1];
-                    stats.UsNoiseBits = q;
-
-                    break;
-                }
-            foreach (string item in s2)
-                if (item.Contains("sar:status/AdvisedDownstreamMarginOffset"))
-                {
-                    string q = item.Split('=')[1].Split('"')[1];
-                    stats.AdvisedDownstreamMarginOffset = q;
-
-                    break;
-                }
-            foreach (string item in s2)
-                if (item.Contains("sar:status/AdvisedDsINP"))
-                {
-                    string q = item.Split('=')[1].Split('"')[1];
-                    stats.AdvisedDsINP = q;
-
-                    break;
-                }
-            foreach (string item in s2)
-                if (item.Contains("sar:status/AdvisedRFI_mode"))
-                {
-                    string q = item.Split('=')[1].Split('"')[1];
-                    stats.AdvisedRFIMode = q;
-
-                    break;
-                }
-            foreach (string item in s2)
-                if (item.Contains("sar:status/AdvisedUsNoiseBits"))
-                {
-                    string q = item.Split('=')[1].Split('"')[1];
-                    stats.AdvisedUsNoiseBits = q;
-
-                    break;
-                }
-            foreach (string item in s2)
-                if (item.Contains("sar:status/gui_version_number"))
-                {
-                    string q = item.Split('=')[1].Split('"')[1];
-                    stats.FritzGuiVersion = q;
-
-                    break;
-                }
+            stats.BitPilotReference = (int)GetLong(modemStats["sar:status/pilot"]);
 
 
-            return stats;
+            modemStats = getJsonQueryDict(sid, conf, "box:status/localtime", "sar:settings/Annex", "sar:settings/DownstreamMarginOffset", "sar:settings/DsINP", "sar:settings/RFI_mode", "sar:settings/UsNoiseBits", "sar:status/AdvisedDownstreamMarginOffset", "sar:status/AdvisedDsINP", "sar:status/AdvisedRFI_mode", "sar:status/AdvisedUsNoiseBits", "sar:status/gui_version_number");
+
+            stats.LocalTime = modemStats["box:status/localtime"];
+            stats.Annex = modemStats["sar:settings/Annex"];
+            stats.DownstreamMarginOffset = modemStats["sar:settings/DownstreamMarginOffset"];
+            stats.DsINP = modemStats["sar:settings/DsINP"];
+            stats.RFI_mode = modemStats["sar:settings/RFI_mode"];
+            stats.UsNoiseBits = modemStats["sar:settings/UsNoiseBits"];
+            stats.AdvisedDownstreamMarginOffset = modemStats["sar:status/AdvisedDownstreamMarginOffset"];
+            stats.AdvisedDsINP = modemStats["sar:status/AdvisedDsINP"];
+            stats.AdvisedRFIMode = modemStats["sar:status/AdvisedRFI_mode"];
+            stats.AdvisedUsNoiseBits = modemStats["sar:status/AdvisedUsNoiseBits"];
+            stats.FritzGuiVersion = modemStats["sar:status/gui_version_number"];
         }
 
-        private long GetLong(XElement element, string Attribute)
+        private long GetLong(string value)
         {
             long output = 0;
 
             try
             {
-                output = Convert.ToInt64(element.Attribute(Attribute).Value);
-            }
-            catch (FormatException)
-            {
-                
-                //do nothing
-            }
-
-            return output;
-        }
-        private long GetLongEl(XElement element, string secondElement)
-        {
-            long output = 0;
-
-            try
-            {
-                output = Convert.ToInt64(element.Element(secondElement).Value);
+                output = Convert.ToInt64(value);
             }
             catch (FormatException)
             {
@@ -332,13 +236,13 @@ namespace FritzboxLog
             return output;
         }
 
-        private byte GetByte(XElement element, string Attribute)
+        private byte GetByte(string value)
         {
             byte output = 0;
 
             try
             {
-                output = Convert.ToByte(element.Attribute(Attribute).Value);
+                output = Convert.ToByte(value);
             }
             catch (FormatException)
             {
@@ -349,13 +253,13 @@ namespace FritzboxLog
             return output;
         }
 
-        private bool GetBool(XElement element, string Attribute)
+        private bool GetBool(string value)
         {
             bool output = false;
 
             try
             {
-                output = Convert.ToBoolean(Convert.ToByte(element.Attribute(Attribute).Value));
+                output = Convert.ToBoolean(Convert.ToByte(value));
             }
             catch (FormatException)
             {
@@ -366,13 +270,13 @@ namespace FritzboxLog
             return output;
         }
 
-        private double GetDouble(XElement element, string Attribute)
+        private double GetDouble(string value)
         {
             double output = 0;
 
             try
             {
-                output = Convert.ToDouble(element.Attribute(Attribute).Value);
+                output = Convert.ToDouble(value);
             }
             catch (FormatException)
             {
@@ -383,38 +287,23 @@ namespace FritzboxLog
             return output;
         }
 
-        private string GetStringEl(XElement element, string secondElement)
+        private Dictionary<string, string> getJsonQueryDict(string sid, Config conf, params string[] query)
         {
-            string output = "";
-
-            try
+            StringBuilder queryStr = new StringBuilder();
+            foreach (string qr in query)
             {
-                output = element.Element(secondElement).Value.Replace("\n", string.Empty);
+                queryStr.Append(qr + "=" + qr + "&");
             }
-            catch (FormatException)
-            {
+            HttpWebRequest requestq = WebRequest.Create(@"http://" + conf.baseurl + "/query.lua?" + queryStr.ToString() + "sid=" + sid) as HttpWebRequest;
+            requestq.Method = "GET";
+            HttpWebResponse wrq = requestq.GetResponse() as HttpWebResponse;
+            StreamReader readerq = new StreamReader(wrq.GetResponseStream());
+            string strq = readerq.ReadToEnd();
 
-                //do nothing
-            }
 
-            return output;
-        }
+            Dictionary<string, string> jsontest = JsonConvert.DeserializeObject<Dictionary<string, string>>(strq);
 
-        private string GetString(XElement element, string Attribute)
-        {
-            string output = "";
-
-            try
-            {
-                output = element.Attribute(Attribute).Value.Replace("\n", string.Empty);
-            }
-            catch (FormatException)
-            {
-
-                //do nothing
-            }
-
-            return output;
+            return jsontest;
         }
 
     }
