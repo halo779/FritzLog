@@ -32,9 +32,11 @@ namespace FritzboxLog
         [NonSerialized()]
         public const string DEFAULT_PASSWORD = "admin", DEFAULT_BASEURL = "fritz.box";
         public const int DEFAULT_CONFVERSION = 1;
-        public const bool DEFAULT_LOGTOTEXTFILE = false;
+        public const bool DEFAULT_LOGTOTEXTFILE = false, logToSingleFile = false;
+        public static string attemptOutPath = Environment.CurrentDirectory;
+        public static string attemptWriteToSingleFile = attemptOutPath + @"\latest.log";
 
-        public bool FritzOs5 = false;
+        public bool FritzOs5 = false, TimeOutOfAlignment = false;
 
     }
 }
