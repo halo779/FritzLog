@@ -93,7 +93,8 @@ namespace FritzboxLog
             bool httpStatus = IsServerUp(config.baseurl, 80, 200);
             WritelineColouredBool(httpStatus);
             Console.Write("Telnet Service: ");
-            WritelineColouredBool(IsServerUp(config.baseurl, 23, 200));
+            bool telnetStatus = IsServerUp(config.baseurl, 23, 200);
+            WritelineColouredBool(telnetStatus);
 
             if (!httpStatus)
             {
@@ -138,10 +139,18 @@ namespace FritzboxLog
 
             dc.GetDslStats(sid, config, ref info);
 
-            TelnetCollector tl = new TelnetCollector();
+            if (telnetStatus)
+            {
+                TelnetCollector tl = new TelnetCollector();
 
-            tl.ProcessTelnet(config, info);
-            
+                tl.ProcessTelnet(config, info);
+            }
+            else
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine("Telnet was Inaccessable. Skipping..");
+                Console.ResetColor();
+            }
 
             //dc.MonitorErrorRatesForMins(sid, config, ref info, 600);
 
