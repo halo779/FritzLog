@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Xml.Serialization;
 
 namespace FritzboxLog
@@ -32,7 +34,7 @@ namespace FritzboxLog
                                 if (args.Length > (i + 1) && args[i] != null && args[i] != "")
                                 {
                                     i++;
-                                    attemptWriteToSingleFile = attemptOutPath + @"\" + args[i].ToString();
+                                    attemptWriteToSingleFile = attemptOutPath + @"\" + args[i];
                                 }
 
                                 break;
@@ -43,8 +45,6 @@ namespace FritzboxLog
                                 autoClose = true;
                                 break;
                             }
-                        default:
-                            break;
                     }
                 }
             }
@@ -89,10 +89,10 @@ namespace FritzboxLog
 
             Console.WriteLine("Fritzbox Status");
             Console.WriteLine("---------------");
-            Console.Write("HTTP: ");
+            Console.Write("HTTP Service: ");
             bool httpStatus = IsServerUp(config.baseurl, 80, 200);
             WritelineColouredBool(httpStatus);
-            Console.Write("Telnet: ");
+            Console.Write("Telnet Service: ");
             WritelineColouredBool(IsServerUp(config.baseurl, 23, 200));
 
             if (!httpStatus)
@@ -113,8 +113,8 @@ namespace FritzboxLog
             DslInfo info = new DslInfo();
 
             info.Firmware = dc.GetFirmwareVersion(config);
-            int mainOsVer = 0;
-            int minorOsVer = 0;
+            int mainOsVer;
+            int minorOsVer;
             int.TryParse(info.Firmware.Split('.')[1], out mainOsVer);
             int.TryParse(info.Firmware.Split('.')[2], out minorOsVer);
 
@@ -134,10 +134,16 @@ namespace FritzboxLog
                 Console.ReadKey();
                 Environment.Exit(0);
             }
-            Console.WriteLine("\n-=- DSL Info -=-\n");
+            Console.WriteLine("Collecting Data From Fritz HTTP Service");
 
             dc.GetDslStats(sid, config, ref info);
 
+            TelnetCollector tl = new TelnetCollector();
+
+            tl.ProcessTelnet(config, info);
+            
+
+            //dc.MonitorErrorRatesForMins(sid, config, ref info, 600);
 
             /* RRD stuff
             NHawkCommand.Instance.RRDCommandPath = @"C:\rrd\rrdtool.exe";
@@ -161,6 +167,7 @@ namespace FritzboxLog
 
             */
 
+            Console.WriteLine("\n-=- DSL Info -=-\n");
             foreach (var field in typeof(DslInfo).GetFields())
             {
                 if (field.Name != "SNRGraph" && field.Name != "BitLoaderGraph")
@@ -241,10 +248,14 @@ namespace FritzboxLog
 
             }
 
-            //System.Windows.Forms.Form testy = new test();
+            //info.dscrcCounts = new List<RelationalDouble>();
 
-           // testy.ShowDialog();
+            //System.Windows.Forms.Form testy = new test(info.dscrcCounts);
 
+            //info.dscrcCounts.Add(new RelationalDouble(4.0));
+            
+            //testy.ShowDialog();
+            
 
             stopWatch.Stop();
             TimeSpan ts = stopWatch.Elapsed;
@@ -285,15 +296,15 @@ namespace FritzboxLog
         public static void SaveSettings(Config conf)
         {
             // Create a new XmlSerializer instance with the type of the test class
-            XmlSerializer SerializerObj = new XmlSerializer(typeof(Config));
+            XmlSerializer serializerObj = new XmlSerializer(typeof(Config));
             try
             {
                 // Create a new file stream to write the serialized object to a file  
-                TextWriter WriteFileStream = new StreamWriter(Environment.CurrentDirectory + @"\conf.xml");
-                SerializerObj.Serialize(WriteFileStream, conf);
+                TextWriter writeFileStream = new StreamWriter(Environment.CurrentDirectory + @"\conf.xml");
+                serializerObj.Serialize(writeFileStream, conf);
 
                 // Cleanup
-                WriteFileStream.Close();
+                writeFileStream.Close();
             }
             catch (UnauthorizedAccessException)
             {
@@ -306,26 +317,26 @@ namespace FritzboxLog
 
         public static Config LoadSettings()
         {
-            XmlSerializer SerializerObj = new XmlSerializer(typeof(Config));
+            XmlSerializer serializerObj = new XmlSerializer(typeof(Config));
 
-            Config LoadedObj = new Config();
+            Config loadedObj = new Config();
             try
             {
                 // Create a new file stream for reading the XML file
-                FileStream ReadFileStream = new FileStream(Environment.CurrentDirectory + @"\conf.xml", FileMode.Open, FileAccess.Read, FileShare.Read);
+                FileStream readFileStream = new FileStream(Environment.CurrentDirectory + @"\conf.xml", FileMode.Open, FileAccess.Read, FileShare.Read);
 
                 // Load the object saved above by using the Deserialize function
-                LoadedObj = (Config)SerializerObj.Deserialize(ReadFileStream);
+                loadedObj = (Config)serializerObj.Deserialize(readFileStream);
 
                 // Cleanup
-                ReadFileStream.Close();
+                readFileStream.Close();
             }
             catch (Exception)
             {
                 //do nothing.
             }
 
-            return LoadedObj;
+            return loadedObj;
         }
 
         public static Config LoadDefaults(Config conf)
@@ -346,13 +357,13 @@ namespace FritzboxLog
             if (inn)
             {
                 Console.ForegroundColor = ConsoleColor.Green;
-                Console.Write(inn.ToString() + "\n");
+                Console.Write(true.ToString() + "\n");
                 Console.ResetColor();
             }
             else
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.Write(inn.ToString() + "\n");
+                Console.Write(false.ToString() + "\n");
                 Console.ResetColor();
             }
 

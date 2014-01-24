@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Text;
 
@@ -15,15 +16,26 @@ namespace FritzboxLog
 
         public bool LatencyModeDownstream, LatencyModeUpstream, BitswapDownstream, BitswapUpstream, UpgradesManaged;
 
-        public double INPDownstream, INPUpstream, FECPerMinDownstream, FECPerMinUpstream, CRCPerMinDownstream, CRCPerMinUpstream;
+        public double INPDownstream, INPUpstream, FECPerMinDownstream, FECPerMinUpstream, CRCPerMinDownstream, CRCPerMinUpstream, DslUptimeTotalSeconds;
 
-        public string LineProfile, DeviceCurrentTime, Annex, DsINP, RFI_mode, UsNoiseBits, AdvisedDownstreamMarginOffset, AdvisedDsINP, AdvisedRFIMode, AdvisedUsNoiseBits, FritzGuiVersion, ATCUId, ATCUVendor, ATCUHybrid, DSLAMId, DSLAMVersion, DSLAMSerial, DSLVersion, SNRGraph, BitLoaderGraph, DownstreamMarginOffset, Firmware, NspVersion, DeviceBootTime, DslConnectedSince;
+        public string TextualLineProfile, DeviceCurrentTime, Annex, DsINP, RFI_mode, UsNoiseBits, AdvisedDownstreamMarginOffset, AdvisedDsINP, AdvisedRFIMode, AdvisedUsNoiseBits, FritzGuiVersion, ATCUId, ATCUVendor, ATCUHybrid, DSLAMId, DSLAMVersion, DSLAMSerial, DSLVersion, SNRGraph, BitLoaderGraph, DownstreamMarginOffset, Firmware, NspVersion, DeviceBootTime, DslConnectedSince;
+
+        public VdslProfiles VdslLineProfile;
+        public VdslTransferModes VdslTransferMode;
+
+        public double CalcuatedFECsPerMinDownstream, CalcuatedFECsPerMinUpstream, CalcuatedCRCsPerMinDownstream, CalcuatedCRCsPerMinUpstream, DownstreamTrainingMargin, TxTotalPower, FeTxTotalPower, GHsEstimatedNearEndLoopLengthFt, GHsEstimatedNearEndLoopLengthMeters, GHsEstimatedFarEndLoopLengthFt, GHsEstimatedFarEndLoopLengthMeters, NearSNRMargin, NearAtteuation, NearAverageSnrMagin, NearAvaerageSnr, VdslEstimatedLoopLengthMeters;
+
+        public double[] NearSnrMagins = new double[5];
+        public double[] NearLineAttenuations = new double[5];
+        public double[] NearSignalAttenations = new double[5];
+
+        //public List<RelationalDouble> dsfecCounts, usfecCounts, dscrcCounts, uscrcCounts;
 
         /*
          * Need to Refactor below Variables.
          */
 
-        public long LossOfSignalDownstream, LossOfSignalUpstream, LossOfFrameDownstream, LossOfFrameUpstream, FECDownstreamTotal, FECUpstreamTotal, CRCDownstreamTotal, CRCUpstreamTotal, ErroredSecondsDownstream, ErroredSecondsUpstream, SeverelyErroredSecondsDownstream, SeverelyErroredSecondsUpstream;
+        public long LossOfSignalDownstream, LossOfSignalUpstream, LossOfFrameDownstream, LossOfFrameUpstream, FECDownstreamTotal, FECUpstreamTotal, CRCDownstreamTotal, CRCUpstreamTotal, ErroredSecondsDownstream, ErroredSecondsUpstream, SeverelyErroredSecondsDownstream, SeverelyErroredSecondsUpstream, VdslEstimatedLoopLengthFt;
 
         public byte CalcuateDLM()
         {
@@ -63,6 +75,26 @@ namespace FritzboxLog
             }
 
             return DLM;
+        }
+
+        public enum VdslProfiles
+        {
+            Unknown,
+            _8a,
+            _8b,
+            _8c,
+            _8d,
+            _12a,
+            _12b,
+            _17a,
+            _30a
+        };
+
+        public enum VdslTransferModes
+        {
+            Unknown,
+            ATM,
+            PTM
         }
     }
 }

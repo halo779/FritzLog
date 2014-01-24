@@ -12,15 +12,29 @@ namespace FritzboxLog
 {
     public partial class test : Form
     {
-
-        public test()
+        private List<RelationalDouble> testvar;
+        public test(List<RelationalDouble> item)
         {
             InitializeComponent();
+
+            testvar = item;
         }
+
 
         private void test_Load(object sender, EventArgs e)
         {
+            testvar.Add(new RelationalDouble(7.9));
+
             Plot plot = new Plot();
+            plot.Model = new OxyPlot.PlotModel();
+            plot.Dock = DockStyle.Fill;
+            Controls.Add(plot);
+
+            plot.Model.PlotType = OxyPlot.PlotType.XY;
+
+            var DS = new OxyPlot.Series.LineSeries();
+
+            /*Plot plot = new Plot();
             plot.Model = new OxyPlot.PlotModel();
             plot.Dock = DockStyle.Fill;
             this.Controls.Add(plot);
@@ -68,6 +82,8 @@ namespace FritzboxLog
             plot.Model.Series.Add(DS);
             plot.Model.Series.Add(US);
             plot.Model.Series.Add(piolt);
+
+            */
         }
     }
 }
